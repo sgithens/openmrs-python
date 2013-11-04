@@ -7,10 +7,12 @@ Usage
 =====
 
 * Add "openmrs-python" to your INSTALLED_APPS setting like this:
+  ```python
   INSTALLED_APPS = (
           ...
           'openmrs-python',
   )
+  ```
 
 * At the moment I haven't tried using syncdb, because I assume the tables
   were created with OpenMRS
