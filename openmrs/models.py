@@ -84,6 +84,7 @@ class Concept(models.Model):
     date_retired = models.DateTimeField(null=True, blank=True)
     retire_reason = models.CharField(max_length=765, blank=True)
     uuid = models.CharField(max_length=114, unique=True)
+
     class Meta:
         db_table = u'concept'
 
@@ -484,8 +485,8 @@ class Encounter(models.Model):
     encounter_id = models.IntegerField(primary_key=True)
     encounter_type = models.ForeignKey('EncounterType', db_column='encounter_type', related_name='+')
     patient = models.ForeignKey('Patient')
-    location = models.ForeignKey('Location', null=True, blank=True, related_name='+')
-    form = models.ForeignKey('Form', null=True, blank=True, related_name='+')
+    location_id = models.IntegerField() #models.ForeignKey('Location', null=True, blank=True, related_name='+')
+    form_id = models.IntegerField() #models.ForeignKey('Form', null=True, blank=True, related_name='+')
     encounter_datetime = models.DateTimeField()
     creator = models.ForeignKey(Users, db_column='creator', related_name='+')
     date_created = models.DateTimeField()
@@ -497,6 +498,31 @@ class Encounter(models.Model):
     changed_by = models.ForeignKey(Users, null=True, db_column='changed_by', blank=True, related_name='+')
     date_changed = models.DateTimeField(null=True, blank=True)
     # Maybe not in OpenMRS 1.8 visit = models.ForeignKey('Visit', null=True, blank=True, related_name='+')
+
+    def getSingleObs(self, conceptId):
+        """Returns a single Obs based on the the concept ID. If there is none we
+        return None, otherwise we return the Obs
+        If there is more than one, we should throw an exception.
+        """
+        obslist = self.obs_set.filter(concept_id=conceptId).all()
+        if len(obslist) == 1:
+            return obslist[0]
+        elif len(obslist) == 0:
+            return None
+        else:
+            raise Exception("More than one of a single obs:" + str(conceptId))
+
+    def getSingleObsValue(self, conceptId):
+        """
+        Returns the value for the single obs, and returns None, if there
+        isn't one.
+        """
+        o = self.getSingleObs(conceptId)
+        if o != None:
+            return o
+        else:
+            return None
+
     class Meta:
         db_table = u'encounter'
 
@@ -1038,7 +1064,7 @@ class Obs(models.Model):
     accession_number = models.CharField(max_length=765, blank=True)
     value_group_id = models.IntegerField(null=True, blank=True)
     value_boolean = models.IntegerField(null=True, blank=True)
-    value_coded = models.ForeignKey(Concept, null=True, db_column='value_coded', blank=True, related_name='+')
+    value_coded = models.IntegerField() #models.ForeignKey(Concept, null=True, db_column='value_coded', blank=True, related_name='+')
     value_coded_name = models.ForeignKey(ConceptName, null=True, blank=True, related_name='+')
     value_drug = models.ForeignKey(Drug, null=True, db_column='value_drug', blank=True, related_name='+')
     value_datetime = models.DateTimeField(null=True, blank=True)
@@ -1046,7 +1072,7 @@ class Obs(models.Model):
     value_modifier = models.CharField(max_length=6, blank=True)
     value_text = models.TextField(blank=True)
     comments = models.CharField(max_length=765, blank=True)
-    creator = models.ForeignKey(Users, db_column='creator', related_name='+')
+    #creator = models.IntegerField(blank=True, null=True) #models.ForeignKey(Users, db_column='creator', related_name='+')
     date_created = models.DateTimeField()
     voided = models.IntegerField()
     voided_by = models.ForeignKey(Users, null=True, db_column='voided_by', blank=True, related_name='+')
@@ -1055,6 +1081,31 @@ class Obs(models.Model):
     value_complex = models.CharField(max_length=765, blank=True)
     uuid = models.CharField(max_length=114, unique=True)
     # May not be in 1.8 previous_version = models.ForeignKey('self', null=True, db_column='previous_version', blank=True, related_name='+')
+
+    @property
+    def value(self):
+        if self.value_numeric:
+            return self.value_numeric
+        elif self.value_datetime:
+            return self.value_datetime.date()
+        elif self.value_boolean:
+            return self.value_boolean
+        elif self.value_coded:
+            return self.value_coded.concept_id
+        elif self.value_text:
+            return self.value_text
+        else:
+            return None
+            raise NotImplementedError("ObsId: " + str(self.obs_id) + " " \
+                    + str(self.concept_id))
+
+    @property
+    def value_label(self):
+        if self.value_coded:
+            return self.value_coded.conceptname_set.all()[0].name
+        else:
+            return None
+
     class Meta:
         db_table = u'obs'
 
@@ -1111,7 +1162,7 @@ class Orders(models.Model):
         db_table = u'orders'
 
 class Patient(models.Model):
-    patient = models.ForeignKey(Person, primary_key=True)
+    patient = models.OneToOneField(Person, primary_key=True)
     # maybe new in 1.8 tribe = models.ForeignKey('Tribe', null=True, db_column='tribe', blank=True, related_name='+')
     # Adding so we don't have to fetch the entire patient and person to get their ID
     #patient_id = models.IntegerField(db_column='patient_id')
@@ -1526,10 +1577,10 @@ class Relationship(models.Model):
     date_voided = models.DateTimeField(null=True, blank=True)
     void_reason = models.CharField(max_length=765, blank=True)
     uuid = models.CharField(max_length=114, unique=True, blank=True)
-    date_changed = models.DateTimeField(null=True, blank=True)
-    changed_by = models.ForeignKey(Users, null=True, db_column='changed_by', blank=True, related_name='+')
-    start_date = models.DateTimeField(null=True, blank=True)
-    end_date = models.DateTimeField(null=True, blank=True)
+    # May not be in older versions of OMRS date_changed = models.DateTimeField(null=True, blank=True)
+    # newer prop as well changed_by = models.ForeignKey(Users, null=True, db_column='changed_by', blank=True, related_name='+')
+    # start_date = models.DateTimeField(null=True, blank=True)
+    # end_date = models.DateTimeField(null=True, blank=True)
     class Meta:
         db_table = u'relationship'
 
@@ -1992,4 +2043,3 @@ class XformsXform(models.Model):
     uuid = models.CharField(max_length=114, blank=True)
     class Meta:
         db_table = u'xforms_xform'
-
